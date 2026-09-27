@@ -1,0 +1,81 @@
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { UserProfile, ConsentSettings, Registration } from '../types';
+import { defaultIndividualUser, defaultOrganizationUser, initialRegistrations } from '../data/mockData';
+
+interface AuthContextValue {
+  user: UserProfile | null;
+  isAuthenticated: boolean;
+  consentSettings: ConsentSettings;
+  myRegistrations: Registration[];
+  login: (role: 'individual' | 'organization', name?: string, blood?: string) => void;
+  logout: () => void;
+  switchRole: (role: 'individual' | 'organization') => void;
+  updateConsent: (updates: Partial<ConsentSettings>) => void;
+  addRegistration: (reg: Registration) => void;
+  updateRegistrationStatus: (ticketId: string, status: Registration['status']) => void;
+}
+
+const defaultConsent: ConsentSettings = {
+  emergencyAlerts: true,
+  whatsappNotifications: true,
+  smsAlerts: false,
+  futureDriveParticipation: true,
+  shareContactWithOrganizers: true,
+  updatedAt: new Date().toISOString(),
+};
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [consentSettings, setConsentSettings] = useState<ConsentSettings>(defaultConsent);
+  const [myRegistrations, setMyRegistrations] = useState<Registration[]>(initialRegistrations);
+
+  const login = useCallback((role: 'individual' | 'organization', name?: string, blood?: string) => {
+    if (role === 'individual') {
+      setUser({ ...defaultIndividualUser, name: name || defaultIndividualUser.name, bloodGroup: blood || defaultIndividualUser.bloodGroup });
+    } else {
+      setUser({ ...defaultOrganizationUser });
+    }
+    setIsAuthenticated(true);
+  }, []);
+
+  const logout = useCallback(() => {
+    setUser(null);
+    setIsAuthenticated(false);
+  }, []);
+
+  const switchRole = useCallback((role: 'individual' | 'organization') => {
+    setUser(role === 'individual' ? defaultIndividualUser : defaultOrganizationUser);
+  }, []);
+
+  const updateConsent = useCallback((updates: Partial<ConsentSettings>) => {
+    setConsentSettings(prev => ({ ...prev, ...updates, updatedAt: new Date().toISOString() }));
+  }, []);
+
+  const addRegistration = useCallback((reg: Registration) => {
+    setMyRegistrations(prev => [reg, ...prev]);
+  }, []);
+
+  const updateRegistrationStatus = useCallback((ticketId: string, status: Registration['status']) => {
+    setMyRegistrations(prev =>
+      prev.map(r => r.id === ticketId ? { ...r, status } : r)
+    );
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{
+      user, isAuthenticated, consentSettings, myRegistrations,
+      login, logout, switchRole, updateConsent, addRegistration, updateRegistrationStatus,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}
